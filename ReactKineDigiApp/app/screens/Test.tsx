@@ -36,7 +36,7 @@ const Test: React.FC<TestProps> = () => {
   let recordVideo = async () => {
     setIsRecording(true);
     let options = {
-      quality: "1080p",
+      quality: "720p",
       maxDuration: 60,
       mute: false
     };
@@ -89,7 +89,7 @@ const Test: React.FC<TestProps> = () => {
   }
 
   return (
-    <Camera style={styles.container} ref={cameraRef}>
+    <Camera style={styles.container} ref={cameraRef} ratio="16:9">
       <View style={styles.buttonContainer}>
         <Button title={isRecording ? "Stop Recording" : "Record Video"} onPress={isRecording ? stopRecording : recordVideo} />
       </View>
@@ -107,10 +107,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     alignSelf: "flex-end"
   },
-  video: {
-    flex: 1,
-    alignSelf: "stretch"
-  }
 });
 
 export default Test;

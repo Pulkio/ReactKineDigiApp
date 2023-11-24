@@ -1,37 +1,54 @@
-import { StyleSheet, Text, View, Button, SafeAreaView } from 'react-native';
-import { useEffect, useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, Button, SafeAreaView } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 import { Camera } from 'expo-camera';
-import { Video, ResizeMode } from 'expo-av';
 import { shareAsync } from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
+import { getAuth } from 'firebase/auth';
+import { getDocs, collection } from 'firebase/firestore';
+import { FIRESTORE_DB } from '../../FirebaseConfig';
 
 interface TestProps {}
 
 const Test: React.FC<TestProps> = () => {
   let cameraRef = useRef<Camera>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | undefined>(undefined);
-  const [hasMicrophonePermission, setHasMicrophonePermission] = useState<boolean | undefined>(undefined);
-  const [hasMediaLibraryPermission, setHasMediaLibraryPermission] = useState<boolean | undefined>(undefined);
   const [isRecording, setIsRecording] = useState(false);
   const [video, setVideo] = useState<{ uri: string } | undefined>();
+  const [selectedTest, setSelectedTest] = useState<string | null>(null);
+  const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
+  const [tests, setTests] = useState<string[]>([]);
+  const [patients, setPatients] = useState<string[]>([]);
+  const [showCamera, setShowCamera] = useState(false); // New state to manage camera visibility
+  const currentUser = getAuth().currentUser;
 
   useEffect(() => {
     (async () => {
       const cameraPermission = await Camera.requestCameraPermissionsAsync();
-      const microphonePermission = await Camera.requestMicrophonePermissionsAsync();
-      const mediaLibraryPermission = await MediaLibrary.requestPermissionsAsync();
-
       setHasCameraPermission(cameraPermission.status === "granted");
-      setHasMicrophonePermission(microphonePermission.status === "granted");
-      setHasMediaLibraryPermission(mediaLibraryPermission.status === "granted");
-    })();
-  }, []);
 
-  if (hasCameraPermission === undefined || hasMicrophonePermission === undefined) {
-    return <Text>Requestion permissions...</Text>;
-  } else if (!hasCameraPermission) {
-    return <Text>Permission for camera not granted.</Text>;
-  }
+      // Chargement des tests (exemple : "Test1", "Test2", "Test3", "Test4")
+      setTests(["Test1", "Test2", "Test3", "Test4"]);
+
+      // Chargement des patients de l'utilisateur connecté depuis la base de données
+      const fetchPatients = async () => {
+        try {
+          if (currentUser) {
+            const querySnapshot = await getDocs(collection(FIRESTORE_DB, `users/${currentUser.uid}/patients`));
+            const patientsData: string[] = [];
+            querySnapshot.forEach((doc) => {
+              patientsData.push(doc.id);
+            });
+            setPatients(patientsData);
+          }
+        } catch (error) {
+          console.error('Erreur lors de la récupération des patients : ', error);
+        }
+      };
+
+      fetchPatients();
+    })();
+  }, [currentUser]);
 
   let recordVideo = async () => {
     setIsRecording(true);
@@ -50,50 +67,68 @@ const Test: React.FC<TestProps> = () => {
 
   let stopRecording = () => {
     setIsRecording(false);
+    setShowCamera(false); // Hide the camera after stopping recording
     if (cameraRef.current) {
       cameraRef.current.stopRecording();
     }
   };
 
-  if (video) {
-    let shareVideo = () => {
-      if (video.uri) {
-        shareAsync(video.uri).then(() => {
-          setVideo(undefined);
-        });
-      }
-    };
+  let shareVideo = () => {
+    if (video && video.uri) {
+      shareAsync(video.uri).then(() => {
+        setVideo(undefined);
+      });
+    }
+  };
 
-    let saveVideo = () => {
-      if (video.uri && hasMediaLibraryPermission) {
-        MediaLibrary.saveToLibraryAsync(video.uri).then(() => {
-          setVideo(undefined);
-        });
-      }
-    };
-
-    return (
-      <SafeAreaView style={styles.container}>
-        <Video
-          style={styles.video}
-          source={{ uri: video.uri }}
-          useNativeControls
-          resizeMode={ResizeMode.COVER}
-          isLooping
-        />
-        <Button title="Share" onPress={shareVideo} />
-        {hasMediaLibraryPermission ? <Button title="Save" onPress={saveVideo} /> : undefined}
-        <Button title="Discard" onPress={() => setVideo(undefined)} />
-      </SafeAreaView>
-    );
-  }
+  let saveVideo = () => {
+    if (video && video.uri) {
+      MediaLibrary.saveToLibraryAsync(video.uri).then(() => {
+        setVideo(undefined);
+      });
+    }
+  };
 
   return (
-    <Camera style={styles.container} ref={cameraRef} ratio="16:9">
-      <View style={styles.buttonContainer}>
-        <Button title={isRecording ? "Stop Recording" : "Record Video"} onPress={isRecording ? stopRecording : recordVideo} />
-      </View>
-    </Camera>
+    <SafeAreaView style={styles.container}>
+      {showCamera ? (
+        <View style={styles.cameraContainer}>
+          <Camera style={styles.camera} ref={cameraRef} ratio="16:9">
+            <View style={styles.buttonContainer}>
+              <Button title={isRecording ? "Stop Recording" : "Record Video"} onPress={isRecording ? stopRecording : recordVideo} />
+            </View>
+          </Camera>
+        </View>
+      ) : (
+        <View>
+          <View style={styles.pickerContainer}>
+            <Text style={styles.title}>Choisir un Test</Text>
+            <Picker
+              selectedValue={selectedTest}
+              onValueChange={(itemValue: string | null) => setSelectedTest(itemValue)}
+            >
+              <Picker.Item label="Sélectionner un test" value={null} />
+              {tests.map((test, index) => (
+                <Picker.Item key={index} label={test} value={test} />
+              ))}
+            </Picker>
+            <Text style={styles.title}>Choisir un Patient</Text>
+            <Picker
+              selectedValue={selectedPatient}
+              onValueChange={(itemValue: string | null) => setSelectedPatient(itemValue)}
+            >
+              <Picker.Item label="Sélectionner un patient" value={null} />
+              {patients.map((patient, index) => (
+                <Picker.Item key={index} label={patient} value={patient} />
+              ))}
+            </Picker>
+          </View>
+          <View style={styles.buttonContainer}>
+            <Button title="Commencer la vidéo" onPress={() => setShowCamera(true)} />
+          </View>
+        </View>
+      )}
+    </SafeAreaView>
   );
 };
 
@@ -106,6 +141,21 @@ const styles = StyleSheet.create({
   buttonContainer: {
     backgroundColor: "#fff",
     alignSelf: "flex-end"
+  },
+  pickerContainer: {
+    marginTop: 20,
+  },
+  cameraContainer: {
+    flex: 1,
+    width: '100%', // Ensure the camera takes the full width
+  },
+  camera: {
+    flex: 1,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 10,
   },
 });
 

@@ -1,6 +1,5 @@
-// Test.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Button, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, Button, SafeAreaView, Platform, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Camera } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
@@ -8,7 +7,7 @@ import { getAuth } from 'firebase/auth';
 import { getDocs, collection } from 'firebase/firestore';
 import { FIRESTORE_DB } from '../../FirebaseConfig';
 import VideoPlayer from './VideoPlayer';
-import { copyAsync, cacheDirectory } from 'expo-file-system';
+import * as FileSystem from 'expo-file-system';
 
 interface TestProps {}
 
@@ -29,17 +28,35 @@ const Test: React.FC<TestProps> = () => {
   const [processingVideo, setProcessingVideo] = useState(false);
 
   useEffect(() => {
-    const fetchData = async () => {
-      // Demander l'autorisation de la caméra
-      const cameraPermission = await Camera.requestCameraPermissionsAsync();
-      setHasCameraPermission(cameraPermission.status === "granted");
-
-      // Demander l'autorisation de la bibliothèque multimédia
-      const mediaLibraryPermission = await MediaLibrary.requestPermissionsAsync();
-      if (mediaLibraryPermission.status !== 'granted') {
-        alert('Permission to access media library is required!');
+    const requestMediaLibraryPermission = async () => {
+      if (Platform.OS === 'android' || Platform.OS === 'ios') {
+        const mediaLibraryPermission = await MediaLibrary.getPermissionsAsync();
+        if (mediaLibraryPermission.status !== 'granted') {
+          const newPermission = await MediaLibrary.requestPermissionsAsync();
+          if (newPermission.status !== 'granted') {
+            Alert.alert('Permission Error', 'Media Library permission is required to use this feature.');
+          }
+        }
       }
+    };
 
+    const requestCameraPermission = async () => {
+      const cameraPermission = await Camera.requestCameraPermissionsAsync();
+      if (cameraPermission.status !== 'granted') {
+        Alert.alert('Permission Error', 'Camera permission is required to use this feature.');
+      }
+    };
+
+    const requestPermissions = async () => {
+      await requestMediaLibraryPermission();
+      await requestCameraPermission();
+    };
+
+    requestPermissions();
+  }, []);
+
+  useEffect(() => {
+    const fetchData = async () => {
       // Charger les tests
       setTests(["Test1", "Test2", "Test3", "Test4"]);
 
@@ -69,16 +86,27 @@ const Test: React.FC<TestProps> = () => {
     if (recordedVideoUri) {
       console.log('Recorded Video URI:', recordedVideoUri);
       try {
-        const asset = await MediaLibrary.createAssetAsync(recordedVideoUri);
-        const durationMillis = asset.duration;
-        console.log('Asset Duration (seconds):', durationMillis);
+        // Copiez la vidéo dans le répertoire de documents
+        const documentsDirectory = FileSystem.documentDirectory + 'videos/';
+        const fileName = recordedVideoUri.split('/').pop() || 'downloadedVideo.mp4';
+        const destinationUri = documentsDirectory + fileName;
+        await FileSystem.copyAsync({ from: recordedVideoUri, to: destinationUri });
+
+        // Créez un actif à partir du fichier copié
+        const assetInfo = await MediaLibrary.createAssetAsync(destinationUri);
+        const album = await MediaLibrary.getAlbumAsync('Expo');
+        if (album === null) {
+          await MediaLibrary.createAlbumAsync('Expo', assetInfo, false);
+        } else {
+          await MediaLibrary.addAssetsToAlbumAsync([assetInfo], album, false);
+        }
 
         setVideo({
-          uri: recordedVideoUri,
-          duration: durationMillis,
+          uri: destinationUri,
+          duration: assetInfo.duration,
         });
       } catch (error) {
-        console.error('Error creating asset:', error);
+        console.error('Error processing video:', error);
       } finally {
         setProcessingVideo(false);
       }
@@ -143,7 +171,7 @@ const Test: React.FC<TestProps> = () => {
         <View style={styles.cameraContainer}>
           <Camera style={styles.camera} ref={cameraRef} ratio="16:9">
             <View style={styles.buttonContainer}>
-              <Button title={isRecording ? "Stop Recording" : "Record Video"} onPress={isRecording ? stopRecording : recordVideo} />
+              <Button title={isRecording ? 'Stop Recording' : 'Record Video'} onPress={isRecording ? stopRecording : recordVideo} />
             </View>
           </Camera>
         </View>
@@ -151,20 +179,14 @@ const Test: React.FC<TestProps> = () => {
         <View>
           <View style={styles.pickerContainer}>
             <Text style={styles.title}>Choisir un Test</Text>
-            <Picker
-              selectedValue={selectedTest}
-              onValueChange={(itemValue: string | null) => setSelectedTest(itemValue)}
-            >
+            <Picker selectedValue={selectedTest} onValueChange={(itemValue: string | null) => setSelectedTest(itemValue)}>
               <Picker.Item label="Sélectionner un test" value={null} />
               {tests.map((test, index) => (
                 <Picker.Item key={index} label={test} value={test} />
               ))}
             </Picker>
             <Text style={styles.title}>Choisir un Patient</Text>
-            <Picker
-              selectedValue={selectedPatient}
-              onValueChange={(itemValue: string | null) => setSelectedPatient(itemValue)}
-            >
+            <Picker selectedValue={selectedPatient} onValueChange={(itemValue: string | null) => setSelectedPatient(itemValue)}>
               <Picker.Item label="Sélectionner un patient" value={null} />
               {patients.map((patient, index) => (
                 <Picker.Item key={index} label={patient} value={patient} />
@@ -190,9 +212,7 @@ const Test: React.FC<TestProps> = () => {
         </View>
       )}
 
-      {showVideoPlayer && video && (
-        <VideoPlayer videoUri={video.uri} onClose={closeVideoPlayer} />
-      )}
+      {showVideoPlayer && video && <VideoPlayer videoUri={video.uri} onClose={closeVideoPlayer} />}
     </SafeAreaView>
   );
 };
@@ -204,8 +224,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonContainer: {
-    backgroundColor: "#fff",
-    alignSelf: "flex-end"
+    backgroundColor: '#fff',
+    alignSelf: 'flex-end',
   },
   pickerContainer: {
     marginTop: 20,

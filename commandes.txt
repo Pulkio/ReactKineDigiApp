@@ -7,3 +7,10 @@ npx expo install react-native-screens react-native-safe-area-context
 
 npm install @react-native-picker/picker --save
 npx expo install expo-image-picker
+
+npm install --save react-app-polyfill
+npm install base-64
+npm install --save-dev @babel/plugin-transform-runtime
+npm install firebase @firebase/storage
+npm install firebase @firebase/storage base-64
+

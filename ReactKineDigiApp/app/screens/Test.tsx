@@ -1,13 +1,27 @@
+import { decode, encode } from "base-64";
+
+if (!global.btoa) {
+  global.btoa = encode;
+}
+
+if (!global.atob) {
+  global.atob = decode;
+}
+
+
+import 'firebase/storage';
+import 'firebase/storage/dist/index.cjs'; // or 'firebase/storage/dist/index.esm' for ES modules
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Button, SafeAreaView, Platform, Alert } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Camera } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import { getAuth } from 'firebase/auth';
-import { getDocs, collection } from 'firebase/firestore';
+import { getDocs, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { FIRESTORE_DB } from '../../FirebaseConfig';
 import VideoPlayer from './VideoPlayer';
 import * as FileSystem from 'expo-file-system';
+import { getStorage, ref, uploadString, getDownloadURL, uploadBytes } from '@firebase/storage';
 
 interface TestProps {}
 
@@ -28,17 +42,6 @@ const Test: React.FC<TestProps> = () => {
   const [processingVideo, setProcessingVideo] = useState(false);
 
   useEffect(() => {
-    const requestMediaLibraryPermission = async () => {
-      if (Platform.OS === 'android' || Platform.OS === 'ios') {
-        const mediaLibraryPermission = await MediaLibrary.getPermissionsAsync();
-        if (mediaLibraryPermission.status !== 'granted') {
-          const newPermission = await MediaLibrary.requestPermissionsAsync();
-          if (newPermission.status !== 'granted') {
-            Alert.alert('Permission Error', 'Media Library permission is required to use this feature.');
-          }
-        }
-      }
-    };
 
     const requestCameraPermission = async () => {
       const cameraPermission = await Camera.requestCameraPermissionsAsync();
@@ -48,7 +51,6 @@ const Test: React.FC<TestProps> = () => {
     };
 
     const requestPermissions = async () => {
-      await requestMediaLibraryPermission();
       await requestCameraPermission();
     };
 
@@ -82,36 +84,79 @@ const Test: React.FC<TestProps> = () => {
     fetchData();
   }, [currentUser]);
 
-  const processVideo = async () => {
-    if (recordedVideoUri) {
-      console.log('Recorded Video URI:', recordedVideoUri);
-      try {
-        // Copiez la vidéo dans le répertoire de documents
-        const documentsDirectory = FileSystem.documentDirectory + 'videos/';
-        const fileName = recordedVideoUri.split('/').pop() || 'downloadedVideo.mp4';
-        const destinationUri = documentsDirectory + fileName;
-        await FileSystem.copyAsync({ from: recordedVideoUri, to: destinationUri });
+  const handleVideoRecorded = async (video: { uri: string }) => {
+    setRecordedVideoUri(video.uri);
+    setIsRecording(false);
+    setLoading(true);
 
-        // Créez un actif à partir du fichier copié
-        const assetInfo = await MediaLibrary.createAssetAsync(destinationUri);
-        const album = await MediaLibrary.getAlbumAsync('Expo');
-        if (album === null) {
-          await MediaLibrary.createAlbumAsync('Expo', assetInfo, false);
-        } else {
-          await MediaLibrary.addAssetsToAlbumAsync([assetInfo], album, false);
-        }
+    // Ajouter la vidéo à la collection "videoTest" dans la base de données
+    try {
+      if (currentUser && selectedPatient && selectedTest) {
+        const collectionName = `users/${currentUser.uid}/videoTest`;
+        const videoData = {
+          user: currentUser.uid,
+          patient: selectedPatient,
+          test: selectedTest,
+          uri: video.uri,
+          timestamp: serverTimestamp(),
+        };
 
-        setVideo({
-          uri: destinationUri,
-          duration: assetInfo.duration,
-        });
-      } catch (error) {
-        console.error('Error processing video:', error);
-      } finally {
-        setProcessingVideo(false);
+        await addDoc(collection(FIRESTORE_DB, collectionName), videoData);
+        console.log('Video added to database:', videoData);
       }
-    } else {
-      console.error('Recorded Video URI is undefined');
+    } catch (error) {
+      console.error('Error adding video to database:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const processVideo = async () => {
+    try {
+      if (recordedVideoUri && currentUser && selectedPatient && selectedTest) {
+        const storage = getStorage();
+
+        // Read the video file as base64
+        const videoBase64 = await FileSystem.readAsStringAsync(recordedVideoUri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+
+        // Create a reference to the storage path
+        const storagePath = `videos/${currentUser.uid}/${Date.now()}.mp4`;
+        const storageRef = ref(storage, storagePath);
+
+        // Upload the base64-encoded video to Firebase Storage
+        //await uploadString(storageRef, videoBase64, 'base64', { contentType: 'video/mp4' });
+        const blob = await fetch(recordedVideoUri);
+        const blobData = await blob.blob();
+
+        await uploadBytes(storageRef, blobData, { contentType: 'video/mp4' });
+
+
+
+        // Get the download URL of the uploaded video
+        const downloadURL = await getDownloadURL(storageRef);
+
+        const collectionName = `users/${currentUser.uid}/videoTest`;
+
+        const videoData = {
+          user: currentUser.uid,
+          patient: selectedPatient,
+          test: selectedTest,
+          videoURL: downloadURL,
+          timestamp: new Date(),
+        };
+
+        // Store the download URL in Firestore
+        await addDoc(collection(FIRESTORE_DB, collectionName), videoData);
+
+        console.log('Video added to database:', videoData);
+      } else {
+        console.error('Invalid parameters for video data');
+      }
+    } catch (error) {
+      console.error('Error adding video to database:', error);
+    } finally {
       setProcessingVideo(false);
     }
   };

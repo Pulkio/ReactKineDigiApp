@@ -1,12 +1,14 @@
+// Test.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Button, SafeAreaView } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Camera } from 'expo-camera';
-import { shareAsync } from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import { getAuth } from 'firebase/auth';
 import { getDocs, collection } from 'firebase/firestore';
 import { FIRESTORE_DB } from '../../FirebaseConfig';
+import VideoPlayer from './VideoPlayer';
+import { copyAsync, cacheDirectory } from 'expo-file-system';
 
 interface TestProps {}
 
@@ -14,23 +16,34 @@ const Test: React.FC<TestProps> = () => {
   let cameraRef = useRef<Camera>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | undefined>(undefined);
   const [isRecording, setIsRecording] = useState(false);
-  const [video, setVideo] = useState<{ uri: string } | undefined>();
+  const [video, setVideo] = useState<{ uri: string; duration: number } | undefined>();
   const [selectedTest, setSelectedTest] = useState<string | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [tests, setTests] = useState<string[]>([]);
   const [patients, setPatients] = useState<string[]>([]);
-  const [showCamera, setShowCamera] = useState(false); // New state to manage camera visibility
+  const [showCamera, setShowCamera] = useState(false);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
+  const [recordedVideoUri, setRecordedVideoUri] = useState<string | undefined>();
   const currentUser = getAuth().currentUser;
+  const [loading, setLoading] = useState(false);
+  const [processingVideo, setProcessingVideo] = useState(false);
 
   useEffect(() => {
-    (async () => {
+    const fetchData = async () => {
+      // Demander l'autorisation de la caméra
       const cameraPermission = await Camera.requestCameraPermissionsAsync();
       setHasCameraPermission(cameraPermission.status === "granted");
 
-      // Chargement des tests (exemple : "Test1", "Test2", "Test3", "Test4")
+      // Demander l'autorisation de la bibliothèque multimédia
+      const mediaLibraryPermission = await MediaLibrary.requestPermissionsAsync();
+      if (mediaLibraryPermission.status !== 'granted') {
+        alert('Permission to access media library is required!');
+      }
+
+      // Charger les tests
       setTests(["Test1", "Test2", "Test3", "Test4"]);
 
-      // Chargement des patients de l'utilisateur connecté depuis la base de données
+      // Charger les patients depuis la base de données
       const fetchPatients = async () => {
         try {
           if (currentUser) {
@@ -47,46 +60,81 @@ const Test: React.FC<TestProps> = () => {
       };
 
       fetchPatients();
-    })();
-  }, [currentUser]);
-
-  let recordVideo = async () => {
-    setIsRecording(true);
-    let options = {
-      quality: "720p",
-      maxDuration: 60,
-      mute: false
     };
 
-    if (cameraRef.current) {
-      const recordedVideo = await cameraRef.current.recordAsync(options);
-      setVideo(recordedVideo);
-      setIsRecording(false);
+    fetchData();
+  }, [currentUser]);
+
+  const processVideo = async () => {
+    if (recordedVideoUri) {
+      console.log('Recorded Video URI:', recordedVideoUri);
+      try {
+        const asset = await MediaLibrary.createAssetAsync(recordedVideoUri);
+        const durationMillis = asset.duration;
+        console.log('Asset Duration (seconds):', durationMillis);
+
+        setVideo({
+          uri: recordedVideoUri,
+          duration: durationMillis,
+        });
+      } catch (error) {
+        console.error('Error creating asset:', error);
+      } finally {
+        setProcessingVideo(false);
+      }
+    } else {
+      console.error('Recorded Video URI is undefined');
+      setProcessingVideo(false);
     }
   };
 
-  let stopRecording = () => {
+  useEffect(() => {
+    if (processingVideo) {
+      processVideo();
+    }
+  }, [recordedVideoUri, processingVideo]);
+
+  const recordVideo = async () => {
+    console.log('Entering recordVideo');
+    setIsRecording(true);
+    setLoading(true);
+
+    let options = {
+      quality: '720p',
+      maxDuration: 60,
+      mute: false,
+    };
+
+    try {
+      if (cameraRef.current) {
+        const { uri } = await cameraRef.current.recordAsync(options);
+        console.log('Recorded Video URI in recordVideo:', uri);
+        setRecordedVideoUri(uri);
+      } else {
+        console.error('cameraRef.current is null in recordVideo');
+      }
+    } catch (error) {
+      console.error('Error recording video:', error);
+    } finally {
+      setLoading(false);
+      setProcessingVideo(true);
+    }
+  };
+
+  const stopRecording = () => {
+    console.log('Entering stopRecording');
+    console.log('Before stopRecording');
     setIsRecording(false);
-    setShowCamera(false); // Hide the camera after stopping recording
-    if (cameraRef.current) {
-      cameraRef.current.stopRecording();
-    }
+    setShowCamera(false);
   };
 
-  let shareVideo = () => {
-    if (video && video.uri) {
-      shareAsync(video.uri).then(() => {
-        setVideo(undefined);
-      });
-    }
+  const openVideoPlayer = () => {
+    setShowVideoPlayer(true);
   };
 
-  let saveVideo = () => {
-    if (video && video.uri) {
-      MediaLibrary.saveToLibraryAsync(video.uri).then(() => {
-        setVideo(undefined);
-      });
-    }
+  const closeVideoPlayer = () => {
+    setShowVideoPlayer(false);
+    setVideo(undefined);
   };
 
   return (
@@ -128,6 +176,23 @@ const Test: React.FC<TestProps> = () => {
           </View>
         </View>
       )}
+
+      {video && (
+        <View style={styles.durationContainer}>
+          <Text style={styles.durationText}>{`Duration: ${video.duration} seconds`}</Text>
+        </View>
+      )}
+
+      {video && (
+        <View style={styles.shareContainer}>
+          <Button title="Discard" onPress={() => setVideo(undefined)} />
+          <Button title="Open Video" onPress={openVideoPlayer} />
+        </View>
+      )}
+
+      {showVideoPlayer && video && (
+        <VideoPlayer videoUri={video.uri} onClose={closeVideoPlayer} />
+      )}
     </SafeAreaView>
   );
 };
@@ -147,7 +212,7 @@ const styles = StyleSheet.create({
   },
   cameraContainer: {
     flex: 1,
-    width: '100%', // Ensure the camera takes the full width
+    width: '100%',
   },
   camera: {
     flex: 1,
@@ -156,6 +221,20 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 10,
+  },
+  durationContainer: {
+    position: 'absolute',
+    bottom: 70,
+    alignSelf: 'center',
+  },
+  durationText: {
+    color: 'white',
+    fontSize: 16,
+  },
+  shareContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: 20,
   },
 });
 

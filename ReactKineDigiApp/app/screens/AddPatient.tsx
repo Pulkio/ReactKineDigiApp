@@ -8,6 +8,7 @@ import { getAuth, User } from 'firebase/auth';  // Modifiez l'importation ici
 const AddPatient = () => {
   const [nom, setNom] = useState('');
   const [prenom, setPrenom] = useState('');
+  const [envergure, setEnvergure] = useState(''); // Ajout du champ envergure
   const [currentUser, setCurrentUser] = useState<User | null>(getAuth().currentUser); // Utilisez currentUser directement
 
   const ajouterPatient = async () => {
@@ -45,6 +46,7 @@ const AddPatient = () => {
         const patientData = {
           nom,
           prenom,
+          envergure,
         };
 
         const docRef = doc(collection(FIRESTORE_DB, collectionName), email);
@@ -56,6 +58,7 @@ const AddPatient = () => {
         // Effacer les entrées des champs nom et prénom
         setNom('');
         setPrenom('');
+        setEnvergure(''); 
 
         console.log('Patient ajouté avec l\'ID (e-mail) : ', email);
       }
@@ -80,6 +83,13 @@ const AddPatient = () => {
         value={nom}
         onChangeText={(text) => setNom(text)}
         placeholder="Entrez le nom"
+    />
+    <Text style={styles.label}>Envergure :</Text>
+    <TextInput
+        style={styles.input}
+        value={envergure}
+        onChangeText={(text) => setEnvergure(text)}
+        placeholder="Entrez l'envergure"
     />
 
     <TouchableOpacity style={styles.button} onPress={ajouterPatient}>

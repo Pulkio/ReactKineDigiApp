@@ -8,20 +8,18 @@ if (!global.atob) {
   global.atob = decode;
 }
 
-
 import 'firebase/storage';
 import 'firebase/storage/dist/index.cjs'; // or 'firebase/storage/dist/index.esm' for ES modules
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Button, SafeAreaView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, Button, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Camera } from 'expo-camera';
 import * as MediaLibrary from 'expo-media-library';
 import { getAuth } from 'firebase/auth';
-import { getDocs, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { getDocs, collection, addDoc } from 'firebase/firestore';
 import { FIRESTORE_DB } from '../../FirebaseConfig';
-import VideoPlayer from './VideoPlayer';
 import * as FileSystem from 'expo-file-system';
-import { getStorage, ref, uploadString, getDownloadURL, uploadBytes } from '@firebase/storage';
+import { getStorage, ref, uploadBytes, getDownloadURL } from '@firebase/storage';
 
 interface TestProps {}
 
@@ -40,9 +38,10 @@ const Test: React.FC<TestProps> = () => {
   const currentUser = getAuth().currentUser;
   const [loading, setLoading] = useState(false);
   const [processingVideo, setProcessingVideo] = useState(false);
+  const [isButtonDisabled, setIsButtonDisabled] = useState(true);
+  const [showLoadingPage, setShowLoadingPage] = useState(false);
 
   useEffect(() => {
-
     const requestCameraPermission = async () => {
       const cameraPermission = await Camera.requestCameraPermissionsAsync();
       if (cameraPermission.status !== 'granted') {
@@ -59,10 +58,8 @@ const Test: React.FC<TestProps> = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      // Charger les tests
       setTests(["Test1", "Test2", "Test3", "Test4"]);
 
-      // Charger les patients depuis la base de données
       const fetchPatients = async () => {
         try {
           if (currentUser) {
@@ -84,57 +81,24 @@ const Test: React.FC<TestProps> = () => {
     fetchData();
   }, [currentUser]);
 
-  const handleVideoRecorded = async (video: { uri: string }) => {
-    setRecordedVideoUri(video.uri);
-    setIsRecording(false);
-    setLoading(true);
-
-    // Ajouter la vidéo à la collection "videoTest" dans la base de données
-    try {
-      if (currentUser && selectedPatient && selectedTest) {
-        const collectionName = `users/${currentUser.uid}/videoTest`;
-        const videoData = {
-          user: currentUser.uid,
-          patient: selectedPatient,
-          test: selectedTest,
-          uri: video.uri,
-          timestamp: serverTimestamp(),
-        };
-
-        await addDoc(collection(FIRESTORE_DB, collectionName), videoData);
-        console.log('Video added to database:', videoData);
-      }
-    } catch (error) {
-      console.error('Error adding video to database:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const processVideo = async () => {
     try {
+      setShowLoadingPage(true); // Show loading page
       if (recordedVideoUri && currentUser && selectedPatient && selectedTest) {
         const storage = getStorage();
 
-        // Read the video file as base64
         const videoBase64 = await FileSystem.readAsStringAsync(recordedVideoUri, {
           encoding: FileSystem.EncodingType.Base64,
         });
 
-        // Create a reference to the storage path
         const storagePath = `videos/${currentUser.uid}/${Date.now()}.mp4`;
         const storageRef = ref(storage, storagePath);
 
-        // Upload the base64-encoded video to Firebase Storage
-        //await uploadString(storageRef, videoBase64, 'base64', { contentType: 'video/mp4' });
         const blob = await fetch(recordedVideoUri);
         const blobData = await blob.blob();
 
         await uploadBytes(storageRef, blobData, { contentType: 'video/mp4' });
 
-
-
-        // Get the download URL of the uploaded video
         const downloadURL = await getDownloadURL(storageRef);
 
         const collectionName = `users/${currentUser.uid}/videoTest`;
@@ -147,10 +111,11 @@ const Test: React.FC<TestProps> = () => {
           timestamp: new Date(),
         };
 
-        // Store the download URL in Firestore
         await addDoc(collection(FIRESTORE_DB, collectionName), videoData);
 
         console.log('Video added to database:', videoData);
+
+        Alert.alert('Vidéo envoyée', 'La vidéo a bien été envoyée.');
       } else {
         console.error('Invalid parameters for video data');
       }
@@ -158,6 +123,7 @@ const Test: React.FC<TestProps> = () => {
       console.error('Error adding video to database:', error);
     } finally {
       setProcessingVideo(false);
+      setShowLoadingPage(false); // Hide loading page
     }
   };
 
@@ -168,7 +134,6 @@ const Test: React.FC<TestProps> = () => {
   }, [recordedVideoUri, processingVideo]);
 
   const recordVideo = async () => {
-    console.log('Entering recordVideo');
     setIsRecording(true);
     setLoading(true);
 
@@ -181,7 +146,6 @@ const Test: React.FC<TestProps> = () => {
     try {
       if (cameraRef.current) {
         const { uri } = await cameraRef.current.recordAsync(options);
-        console.log('Recorded Video URI in recordVideo:', uri);
         setRecordedVideoUri(uri);
       } else {
         console.error('cameraRef.current is null in recordVideo');
@@ -195,8 +159,6 @@ const Test: React.FC<TestProps> = () => {
   };
 
   const stopRecording = () => {
-    console.log('Entering stopRecording');
-    console.log('Before stopRecording');
     setIsRecording(false);
     setShowCamera(false);
   };
@@ -212,11 +174,18 @@ const Test: React.FC<TestProps> = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {showCamera ? (
+      {showLoadingPage ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#0000ff" />
+        </View>
+      ) : showCamera ? (
         <View style={styles.cameraContainer}>
           <Camera style={styles.camera} ref={cameraRef} ratio="16:9">
             <View style={styles.buttonContainer}>
-              <Button title={isRecording ? 'Stop Recording' : 'Record Video'} onPress={isRecording ? stopRecording : recordVideo} />
+              <Button
+                title={isRecording ? 'Stop Recording' : 'Record Video'}
+                onPress={isRecording ? stopRecording : recordVideo}
+              />
             </View>
           </Camera>
         </View>
@@ -224,14 +193,26 @@ const Test: React.FC<TestProps> = () => {
         <View>
           <View style={styles.pickerContainer}>
             <Text style={styles.title}>Choisir un Test</Text>
-            <Picker selectedValue={selectedTest} onValueChange={(itemValue: string | null) => setSelectedTest(itemValue)}>
+            <Picker
+              selectedValue={selectedTest}
+              onValueChange={(itemValue: string | null) => {
+                setSelectedTest(itemValue);
+                setIsButtonDisabled(!itemValue || !selectedPatient);
+              }}
+            >
               <Picker.Item label="Sélectionner un test" value={null} />
               {tests.map((test, index) => (
                 <Picker.Item key={index} label={test} value={test} />
               ))}
             </Picker>
             <Text style={styles.title}>Choisir un Patient</Text>
-            <Picker selectedValue={selectedPatient} onValueChange={(itemValue: string | null) => setSelectedPatient(itemValue)}>
+            <Picker
+              selectedValue={selectedPatient}
+              onValueChange={(itemValue: string | null) => {
+                setSelectedPatient(itemValue);
+                setIsButtonDisabled(!selectedTest || !itemValue);
+              }}
+            >
               <Picker.Item label="Sélectionner un patient" value={null} />
               {patients.map((patient, index) => (
                 <Picker.Item key={index} label={patient} value={patient} />
@@ -239,7 +220,11 @@ const Test: React.FC<TestProps> = () => {
             </Picker>
           </View>
           <View style={styles.buttonContainer}>
-            <Button title="Commencer la vidéo" onPress={() => setShowCamera(true)} />
+            <Button
+              title="Commencer la vidéo"
+              onPress={() => setShowCamera(true)}
+              disabled={isButtonDisabled}
+            />
           </View>
         </View>
       )}
@@ -256,8 +241,6 @@ const Test: React.FC<TestProps> = () => {
           <Button title="Open Video" onPress={openVideoPlayer} />
         </View>
       )}
-
-      {showVideoPlayer && video && <VideoPlayer videoUri={video.uri} onClose={closeVideoPlayer} />}
     </SafeAreaView>
   );
 };
@@ -300,6 +283,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     marginTop: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

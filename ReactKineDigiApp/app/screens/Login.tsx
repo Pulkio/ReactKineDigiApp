@@ -29,7 +29,7 @@ const Login = () => {
         try {
             const response = await createUserWithEmailAndPassword(auth, email, password);
             console.log(response);
-            alert('Check your emails !')
+            alert('Votre compte a bien été créé !')
         } catch (error : any) {
             console.log(error);
             alert('Sign up failed: ' + error.message)

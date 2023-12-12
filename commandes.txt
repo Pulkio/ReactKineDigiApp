@@ -14,3 +14,5 @@ npm install --save-dev @babel/plugin-transform-runtime
 npm install firebase @firebase/storage
 npm install firebase @firebase/storage base-64
 
+npm install @react-navigation/native
+npm install @react-navigation/stack react-native-video

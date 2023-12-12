@@ -44,7 +44,8 @@ const Test: React.FC<TestProps> = () => {
   useEffect(() => {
     const requestCameraPermission = async () => {
       const cameraPermission = await Camera.requestCameraPermissionsAsync();
-      if (cameraPermission.status !== 'granted') {
+      const audioPermission = await Camera.requestMicrophonePermissionsAsync();
+      if (cameraPermission.status !== 'granted' || audioPermission.status !== 'granted') {
         Alert.alert('Permission Error', 'Camera permission is required to use this feature.');
       }
     };

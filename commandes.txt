@@ -16,3 +16,4 @@ npm install firebase @firebase/storage base-64
 
 npm install @react-navigation/native
 npm install @react-navigation/stack react-native-video
+npm install react-native-google-fonts

@@ -1,8 +1,13 @@
-import { View, Text, StyleSheet, TextInput, ActivityIndicator, Button, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ActivityIndicator, Button, KeyboardAvoidingView, TouchableOpacity, Image } from 'react-native';
 import React, { useState } from 'react';
 import { FIREBASE_AUTH } from '../../FirebaseConfig';
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from 'firebase/auth';
 import { loginStyles } from '../styles/loginStyles'; // Importe le styleSheet
+
+
+
+// Assuming you have an image source, replace 'yourLogoPath' with the actual path or source of your logo.
+const logo = require('../../assets/logo_kine_app.png');
 
 const Login = () => {
     const [email, setEmail] = useState('');
@@ -41,19 +46,28 @@ const Login = () => {
 
     return (
         <View style={loginStyles.container}>
-            <KeyboardAvoidingView behavior='padding'>
-                <TextInput value={email} style={loginStyles.input} placeholder='Email' autoCapitalize='none' onChangeText={(text) => setEmail(text)}></TextInput>
-                <TextInput secureTextEntry={true} value={password} style={loginStyles.input} placeholder='Password' autoCapitalize='none' onChangeText={(text) => setPassword(text)}></TextInput>
-
-                {loading ? <ActivityIndicator size="large" color="#0000ff"/> 
-                : <>
-                <Button title='Login' onPress={signIn} />
-                <Button title='Create account' onPress={signUp} />
-                </>}
-            </KeyboardAvoidingView>
-            
+          <Text style={loginStyles.title}>Digiki</Text>
+      
+          <Image source={logo} style={loginStyles.logo} />
+          <KeyboardAvoidingView behavior='padding'>
+            <TextInput value={email} style={loginStyles.input} placeholder='Email' autoCapitalize='none' onChangeText={(text) => setEmail(text)} />
+            <TextInput secureTextEntry={true} value={password} style={loginStyles.input} placeholder='Password' autoCapitalize='none' onChangeText={(text) => setPassword(text)} />
+      
+            {loading ? (
+              <ActivityIndicator size="large" color="#0000ff" />
+            ) : (
+              <View style={loginStyles.buttonContainer}>
+                <TouchableOpacity onPress={signIn} style={[loginStyles.button, loginStyles.loginButton]}>
+                  <Text style={loginStyles.buttonText}>Login</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={signUp} style={[loginStyles.button, loginStyles.signUpButton]}>
+                  <Text style={loginStyles.buttonText}>Sign Up</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </KeyboardAvoidingView>
         </View>
-    );
+      );
 };
 
 export default Login;

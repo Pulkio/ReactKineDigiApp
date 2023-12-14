@@ -34,7 +34,7 @@ const Test: React.FC<TestProps> = () => {
   const [selectedTest, setSelectedTest] = useState<string | null>(null);
   const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
   const [tests, setTests] = useState<string[]>([]);
-  const [patients, setPatients] = useState<string[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
   const [showCamera, setShowCamera] = useState(false);
   const [showVideoPlayer, setShowVideoPlayer] = useState(false);
   const [recordedVideoUri, setRecordedVideoUri] = useState<string | undefined>();
@@ -43,6 +43,12 @@ const Test: React.FC<TestProps> = () => {
   const [processingVideo, setProcessingVideo] = useState(false);
   const [isButtonDisabled, setIsButtonDisabled] = useState(true);
   const [showLoadingPage, setShowLoadingPage] = useState(false);
+
+  interface Patient {
+    id: string;
+    nom: string;
+    prenom: string;
+  }
 
   useEffect(() => {
     const requestCameraPermission = async () => {
@@ -68,22 +74,27 @@ const Test: React.FC<TestProps> = () => {
         try {
           if (currentUser) {
             const querySnapshot = await getDocs(collection(FIRESTORE_DB, `users/${currentUser.uid}/patients`));
-            const patientsData: string[] = [];
+            const patientsData: { id: string; nom: string; prenom: string }[] = [];
+      
             querySnapshot.forEach((doc) => {
-              patientsData.push(doc.id);
+              const { nom, prenom } = doc.data();
+              patientsData.push({ id: doc.id, nom, prenom });
             });
+      
             setPatients(patientsData);
           }
         } catch (error) {
           console.error('Erreur lors de la récupération des patients : ', error);
         }
       };
+      
 
       fetchPatients();
     };
 
     fetchData();
   }, [currentUser]);
+  
 
   const processVideo = async () => {
     try {
@@ -137,7 +148,8 @@ const Test: React.FC<TestProps> = () => {
     }
   }, [recordedVideoUri, processingVideo]);
 
-  const recordVideo = async () => {
+  const recordVideo = async () => {    
+
     setIsRecording(true);
     setLoading(true);
 
@@ -185,12 +197,17 @@ const Test: React.FC<TestProps> = () => {
       ) : showCamera ? (
         <View style={styles.cameraContainer}>
           <Camera style={styles.camera} ref={cameraRef} ratio="16:9">
-            <View style={styles.buttonContainer}>
-              <Button
-                title={isRecording ? 'Stop Recording' : 'Record Video'}
-                onPress={isRecording ? stopRecording : recordVideo}
-              />
-            </View>
+          <View style={styles.recordButtonContainer}>
+  <TouchableOpacity
+    style={styles.recordButton}
+    onPress={isRecording ? stopRecording : recordVideo}
+    disabled={isButtonDisabled}
+  >
+    <Text style={styles.buttonText}>
+      {isRecording ? 'Stop Recording' : 'Record Video'}
+    </Text>
+  </TouchableOpacity>
+</View>
           </Camera>
         </View>
       ) : (
@@ -220,7 +237,7 @@ const Test: React.FC<TestProps> = () => {
             >
               <Picker.Item label="Choisir un patient" value={null} />
               {patients.map((patient, index) => (
-                <Picker.Item key={index} label={patient} value={patient} />
+                <Picker.Item key={index} label={`${patient.nom} ${patient.prenom}`} value={patient.id} />
               ))}
             </Picker>
           </View>
@@ -236,13 +253,13 @@ const Test: React.FC<TestProps> = () => {
           </View>
         </View>
       )}
-
+  
       {video && (
         <View style={styles.durationContainer}>
           <Text style={styles.durationText}>{`Duration: ${video.duration} seconds`}</Text>
         </View>
       )}
-
+  
       {video && (
         <View style={styles.shareContainer}>
           <Button title="Discard" onPress={() => setVideo(undefined)} />
@@ -251,7 +268,7 @@ const Test: React.FC<TestProps> = () => {
       )}
     </SafeAreaView>
   );
-};
+};  
 
 const styles = StyleSheet.create({
   container: {
@@ -311,10 +328,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   buttonText: {
-    color: 'white',
+    color: '#333',
     fontSize: 18,
     fontWeight: 'bold',
   },
+  recordButtonContainer: {
+    position: 'absolute',
+    bottom: 20,
+    alignItems: 'center',
+    width: '100%',
+  },
+  recordButton: {
+    backgroundColor: 'red', // Couleur rouge
+    borderRadius: 25, // Bord arrondi
+    paddingVertical: 15, // Ajustez la hauteur du bouton selon vos besoins
+    paddingHorizontal: 20,
+  },
+  buttonText: {
+    color: 'white', // Couleur du texte blanc
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  
 });
 
 export default Test;

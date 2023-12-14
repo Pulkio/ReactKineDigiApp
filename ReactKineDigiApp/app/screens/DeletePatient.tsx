@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert, Image } from 'react-native';
 import { FIRESTORE_DB } from '../../FirebaseConfig';
 import { getDocs, collection, deleteDoc, doc } from 'firebase/firestore';
 import { getAuth, User } from 'firebase/auth';  // Ajoutez cette importation
+
+const logo = require('../../assets/logo_patient.png');
+
 
 interface Patient {
   id: string;
@@ -78,6 +81,8 @@ const DeletePatient = () => {
 
   return (
     <View style={styles.container}>
+      <Image source={logo} style={styles.logo} />
+
       <Text style={styles.title}>Liste des Patients</Text>
       {patients.length > 0 ? (
         <FlatList
@@ -102,6 +107,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 20,
+    textAlign: 'center', 
   },
   patientItem: {
     flexDirection: 'row',
@@ -117,6 +123,12 @@ const styles = StyleSheet.create({
   deleteButton: {
     color: 'red',
     fontWeight: 'bold',
+  },
+  logo: {
+    width: '100%', // Utiliser la largeur complète de l'écran
+    height: 180, // Ajuster la hauteur selon vos besoins
+    resizeMode: 'contain', // Ajuster le mode de redimensionnement
+    marginBottom: 20,
   },
 });
 

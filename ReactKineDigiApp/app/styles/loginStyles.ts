@@ -19,12 +19,12 @@ export const loginStyles = StyleSheet.create({
   },
   button: {
     marginVertical: 5,
-    paddingVertical: 12, // Ajustez la valeur pour contrôler la hauteur du bouton
-    paddingHorizontal: 50, // Ajustez la valeur pour contrôler la largeur du bouton
+    paddingVertical: 14, // Ajustez la valeur pour contrôler la hauteur du bouton
+    paddingHorizontal: 55, // Ajustez la valeur pour contrôler la largeur du bouton
     borderRadius: 4,
   },
   buttonText: {
-    color: '#fff',
+    color: '#333',
     textAlign: 'center',
     fontWeight: 'bold',
   },
@@ -46,10 +46,10 @@ export const loginStyles = StyleSheet.create({
     justifyContent: 'space-around', // Ajustez la valeur pour contrôler l'espace entre les boutons
   },
   loginButton: {
-    backgroundColor: '#007bff', // Couleur spécifique au bouton "Login"
+    backgroundColor: '#5E9FFF', // Couleur spécifique au bouton "Login"
   },
   signUpButton: {
-    backgroundColor: '#28a745', // Couleur spécifique au bouton "Sign Up"
+    backgroundColor: '#82C7A5', // Couleur spécifique au bouton "Sign Up"
   },
 });
 

@@ -327,11 +327,6 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 20,
   },
-  buttonText: {
-    color: '#333',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
   recordButtonContainer: {
     position: 'absolute',
     bottom: 20,

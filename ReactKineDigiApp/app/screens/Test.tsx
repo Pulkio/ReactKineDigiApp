@@ -68,7 +68,7 @@ const Test: React.FC<TestProps> = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      setTests(["Test1", "Test2", "Test3", "Test4"]);
+      setTests(["Test flexion avant", "Test flexion latéral droit", "Test flexion latéral gauche"]);
 
       const fetchPatients = async () => {
         try {
